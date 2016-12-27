@@ -87,6 +87,7 @@ public class EZRanksProModule extends AIModule {
                 .addTemplate("am I on the last rank?")
                 .addTemplate("can I still rank up?")
                 .addTemplate("can I still rankup?")
+                .addTemplate("is this the last rank?")
                 .addResponse(new IntentResponse()
                         .withAction(this)
                         .addAffectedContext(new Context("ezrankspro", 1))
@@ -114,7 +115,8 @@ public class EZRanksProModule extends AIModule {
                         .addParameter(new IntentResponse.ResponseParameter("question", QuestionType.RANK_LAST.name()))
                         .addMessage(new IntentResponse.TextResponse()
                                 .addSpeechText("The last rank is $lastrank")
-                                .addSpeechText("The maximum rank is $lastrank?")));
+                                .addSpeechText("The maximum rank is $lastrank")
+                                .addSpeechText("It is $lastrank")));
 
 
         // Question to ask for the next rank
@@ -242,18 +244,22 @@ public class EZRanksProModule extends AIModule {
                                 .addSpeechText("$player is currently on rank $rank!")
                                 .addSpeechText("That player is currently on rank $rank")
                                 .addSpeechText("He is currently on rank $rank")));
-        addErrorResponse("rank_otherplayer-no-player","That does not seem to be a player?");
-        addErrorResponse("rank_otherplayer-no-player","That does not seem to be a real player?");
-        addErrorResponse("rank_otherplayer-no-player","Are you sure that is a real player?");
-        addErrorResponse("rank_otherplayer-no-player","Are you sure that player exists?");
-        addErrorResponse("rank_otherplayer-no-player","I can't seem to find that player...");
-        addErrorResponse("rank_otherplayer-no-player","I don't think that is a real player");
-        addErrorResponse("rank_otherplayer-not-online","I can only get the rank of online players, sorry :(");
-        addErrorResponse("rank_otherplayer-not-online","I can only get the rank of online players");
-        addErrorResponse("rank_otherplayer-not-online","I can not get the rank of the player");
-        addErrorResponse("rank_otherplayer-not-online","I can not get that player's rank");
-        addErrorResponse("rank_otherplayer-not-online","Is that player online?");
-        addErrorResponse("rank_otherplayer-not-online","I can only get the rank of an online player");
+        addErrorResponse("rank_otherplayer-no-player", "That does not seem to be a player?");
+        addErrorResponse("rank_otherplayer-no-player", "That does not seem to be a real player?");
+        addErrorResponse("rank_otherplayer-no-player", "Are you sure that is a real player?");
+        addErrorResponse("rank_otherplayer-no-player", "Are you sure that player exists?");
+        addErrorResponse("rank_otherplayer-no-player", "I can't seem to find that player...");
+        addErrorResponse("rank_otherplayer-no-player", "I don't think that is a real player");
+        addErrorResponse("rank_otherplayer-not-online", "I can only get the rank of online players, sorry :(");
+        addErrorResponse("rank_otherplayer-not-online", "I can only get the rank of online players");
+        addErrorResponse("rank_otherplayer-not-online", "I can not get the rank of the player");
+        addErrorResponse("rank_otherplayer-not-online", "I can not get that player's rank");
+        addErrorResponse("rank_otherplayer-not-online", "Is that player online?");
+        addErrorResponse("rank_otherplayer-not-online", "I can only get the rank of an online player");
+        addErrorResponse("rank_otherplayer-no-rank","That player is not in a rank");
+        addErrorResponse("rank_otherplayer-no-rank","That player does not seem to have a rank....");
+        addErrorResponse("rank_otherplayer-no-rank","I can't find the rank of that player :S");
+        addErrorResponse("rank_otherplayer-no-rank","I don't seem to know the rank of that player");
 
         // Question to ask for the rank cost of another player
         Intent qRankOtherPlayerCost = new Intent("QAPlugin-module-ezrankspro-rank.otherplayer.cost")
@@ -262,10 +268,24 @@ public class EZRanksProModule extends AIModule {
                 .addTemplate("how much money did he need for it?")
                 .addTemplate("how much money did he need for that rank?")
                 .addTemplate("how much did that rank cost?")
+                .addTemplate(new IntentTemplate()
+                        .addPart("how much did ")
+                        .addPart(new IntentTemplate.TemplatePart("Maximvdw")
+                                .withMeta("@sys.any")
+                                .withAlias("player"))
+                        .addPart(" pay for his rank?"))
                 .addResponse(new IntentResponse()
                         .withAction(this)
                         .addAffectedContext(new Context("rank_other", 1))
                         .addParameter(new IntentResponse.ResponseParameter("question", QuestionType.RANK_OTHERPLAYER_COST.name()))
+                        .addParameter(new IntentResponse.ResponseParameter("player", "$player")
+                                .withDefaultValue("#rank_other.player")
+                                .withDataType("@sys.any")
+                                .setRequired(true)
+                                .addPrompt("For what player do you want to know the rank?")
+                                .addPrompt("What is the name of the player you want to know the rank of?")
+                                .addPrompt("Can you tell me the name of the player you want to know the rank of?")
+                                .addPrompt("What is the name of the player you want to know the rank of?"))
                         .addMessage(new IntentResponse.TextResponse()
                                 .addSpeechText("He paid $money for it")
                                 .addSpeechText("That player is currently on rank $rank")
@@ -293,6 +313,11 @@ public class EZRanksProModule extends AIModule {
             }
             if (QAPluginAPI.findIntentByName(qRankOtherPlayer.getName()) == null || forceUpdate) {
                 if (!QAPluginAPI.uploadIntent(qRankOtherPlayer)) {
+                    warning("Unable to upload intent!");
+                }
+            }
+            if (QAPluginAPI.findIntentByName(qRankOtherPlayerCost.getName()) == null || forceUpdate) {
+                if (!QAPluginAPI.uploadIntent(qRankOtherPlayerCost)) {
                     warning("Unable to upload intent!");
                 }
             }
@@ -398,25 +423,68 @@ public class EZRanksProModule extends AIModule {
                 }
             case RANK_LAST:
                 LastRank lastRank = getLastRank();
-                return defaultResponse.replace("lastrank", lastRank.getRank());
+                return defaultResponse.replace("$lastrank", lastRank.getRank());
             case RANK_COST:
                 String currentRankupCost = getCurrentRankCost(player);
                 if (currentRankupCost == null) {
                     // Error
                     return getRandomErrorResponse("rank_cost-no-rank", new HashMap<String, String>(), player);
                 } else {
-                    return defaultResponse.replace("money", currentRankupCost);
+                    return defaultResponse.replace("$money", currentRankupCost);
                 }
             case RANK_OTHERPLAYER:
-                if (params.containsKey("player")){
+                if (params.containsKey("player")) {
                     // Try to see if it is a real player
                     OfflinePlayer otherPlayer = Bukkit.getPlayer(params.get("player"));
-                    if (otherPlayer == null){
+                    if (otherPlayer == null) {
                         // Not found
                         return getRandomErrorResponse("rank_otherplayer-no-player", new HashMap<String, String>(), player);
-                    }else{
+                    } else {
                         // Check if online
+                        if (!otherPlayer.isOnline()) {
+                            // Not online
+                            return getRandomErrorResponse("rank_otherplayer-not-online", new HashMap<String, String>(), player);
+                        } else {
+                            rank = getCurrentRank(otherPlayer.getPlayer());
+                            if (rank.equals("")){
+                                // Not in a rank
+                                return getRandomErrorResponse("rank_otherplayer-no-rank", new HashMap<String, String>(), player);
+                            }else{
+                                return defaultResponse.replace("$rank",rank);
+                            }
+                        }
                     }
+                }else{
+                    // Defaultresponse will prob contain a question like "What is the player name?"
+                    // So let API.ai handle the asking ;)
+                    return defaultResponse;
+                }
+            case RANK_OTHERPLAYER_COST:
+                if (params.containsKey("player")) {
+                    // Try to see if it is a real player
+                    OfflinePlayer otherPlayer = Bukkit.getPlayer(params.get("player"));
+                    if (otherPlayer == null) {
+                        // Not found
+                        return getRandomErrorResponse("rank_otherplayer-no-player", new HashMap<String, String>(), player);
+                    } else {
+                        // Check if online
+                        if (!otherPlayer.isOnline()) {
+                            // Not online
+                            return getRandomErrorResponse("rank_otherplayer-not-online", new HashMap<String, String>(), player);
+                        } else {
+                            String rankCost = getCurrentRankCost(otherPlayer.getPlayer());
+                            if (rankCost.equals("")){
+                                // Not in a rank
+                                return getRandomErrorResponse("rank_otherplayer-no-rank", new HashMap<String, String>(), player);
+                            }else{
+                                return defaultResponse.replace("$money",rankCost);
+                            }
+                        }
+                    }
+                }else{
+                    // Defaultresponse will prob contain a question like "What is the player name?"
+                    // So let API.ai handle the asking ;)
+                    return defaultResponse;
                 }
         }
 
